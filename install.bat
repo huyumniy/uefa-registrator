@@ -1,6 +1,6 @@
 @echo off
 
-set "project_dir=..\adspower_gmail_checker-main"
+set "project_dir=..\uefa-registrator-main"
 set "venv_dir=%project_dir%"
 
 rem Create virtual environment
