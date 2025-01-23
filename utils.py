@@ -1,6 +1,6 @@
 from datetime import datetime
 import re
-
+from pprint import pprint
 
 def check_duplicates(data):
     seen = set()
@@ -84,8 +84,10 @@ def get_data_from_sheet(data):
 
 def format_fdata(data):
     result = []
+    pprint(data)
     for el in data:
-        result.append({'email': el[1], 'serial_number': el[0]})
+        print("email", el[15])
+        result.append({'email': el[1], 'serial_number': el[0], 'uefa_password': el[15], 'first_name': el[7], 'last_name': el[8], 'dob': el[9]})
     return result
     
     

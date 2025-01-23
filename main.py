@@ -1,7 +1,9 @@
 import logging
 import sys
 import os
+from pprint import pprint
 import requests
+from nodriver.cdp.network import clear_browser_cookies
 import time
 from utils import get_data_by_date, format_fdata, get_data_from_sheet
 from sheets_api import get_data_from_range, get_data_from_google_sheets
@@ -79,32 +81,190 @@ def ads_request(API_KEY, endpoint='/'):
 async def main(config, data, adspower_api=None):
     driver = await uc.Browser.create(config=config)
     retries = 3
+    print(data['dob'], type(data['dob']))
+    dob_parts = data['dob'][5:-1].split(',')
+    year, month, day = dob_parts
     
+    day = day
+    month = str(int(month) + 1)
+    print(day, month, year)
     for attempt in range(retries):
-        page = await driver.get('https://www.uefa.com/')
+        page = await driver.get('https://mail.google.com/mail/u/0/#inbox')
+        isValid = None
+        noValid = False
         loading = 0
         while await page.evaluate('document.readyState') == 'loading': 
             if loading == 60: break
             time.sleep(1)
             loading += 1
-        if loading == 60: 
+        await page.activate()
+        try:
+            await page.wait_for(f'div[data-email=\"{data["email"]}\"]', timeout=5)
+            noValid = True  
+        except: pass
+
+        try:
+            await page.wait_for(f'a[aria-label*=\"{data["email"]}\"]', timeout=5)
+        except: noValid = True
+
+        if noValid: break
+
+
+        await page.get('https://www.uefa.com/')
+        loading = 0
+        while await page.evaluate('document.readyState') == 'loading': 
+            if loading == 120: break
+            time.sleep(1)
+            loading += 1
+        if loading == 120: 
             logger.info(f"Спроба {attempt + 1} перезавантажити сторінку")
             continue
-        isValid = None
-
         
-
+        # REGISTRATION LOGIC HERE
         try: 
             await page.activate()
-            login_button = await page.wait_for(f'body > div.main-wrap > div > div > div.navigation.navigation--sticky.d3-plugin > div.d3-react.navigation-wrapper.navigation--corporate.pk-theme--dark > nav > div.pk-d--flex.pk-align-items--center.pk-ml--s > pk-button', timeout=60)
+            try:
+                cookie_button = await page.wait_for('button[id="onetrust-reject-all-handler"]', timeout=120)
+                await cookie_button.mouse_click()
+            except: pass
+            login_button = await page.wait_for(f'body > div.main-wrap > div > div > div.navigation.navigation--sticky.d3-plugin > div.d3-react.navigation-wrapper.navigation--corporate.pk-theme--dark > nav > div.pk-d--flex.pk-align-items--center.pk-ml--s > pk-button', timeout=120)
             await login_button.mouse_click()
+            google_button = await page.wait_for(f'div[aria-label="Sign in with Google"]', timeout=120)
+            await google_button.mouse_click()
+            try:
+                temp_gmail_tab = driver.tabs[-1]
+                body = await temp_gmail_tab.select(f'div[data-email=\"{data["email"]}\"]')
+                await body.mouse_click()
+                
+                gmail_continue_button = await temp_gmail_tab.wait_for(f'div > div > div:nth-child(2) > div > div > button > span', timeout=120)
+                await gmail_continue_button.mouse_click()
+                time.sleep(1)
+            except: pass
+            await page.activate()
+
+            try:
+                password_input = await page.wait_for('#gigya-password-107949133340454600', timeout=120)
+                await password_input.send_keys(data['uefa_password'])
+                submit_button = await page.wait_for('#gigya-link-accounts-form > div:nth-child(3) > div > div:nth-child(3) > div > div > input', timeout=120)
+                await submit_button.mouse_click()
+            except: 
+                await page.reload()
+                logger.info(f"Спроба {attempt + 1} перезавантажити сторінку")
+            
+            pincode = False
+            try: pincode = await page.wait_for('#gigya-custom-pin-code-container', timeout=120)
+            except: pass
+            
+            if not pincode:
+                await page.reload()
+                logger.info(f"Спроба {attempt + 1} перезавантажити сторінку")
+                # await page.evaluate('document.cookie.split(";").forEach(cookie => document.cookie = cookie.trim().replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/"));')
+                continue
+
+            # GOOGLE PINCODE PART
+            
+            page2 = await driver.get('https://mail.google.com/mail/u/0/#inbox', new_tab=True)
+            is_authenticated = False
+
+            message = False
+            for _ in range(0, 6):
+                try: 
+                    message = await page2.wait_for('tr:has(span[name="UEFA"]) td:nth-child(5) span > span[data-thread-id]', timeout=20)
+                    is_authenticated = True
+                    break
+                except: 
+                    try:
+                      refresh_button = await page2.select('div[data-tooltip="Refresh"]')
+                      await refresh_button.mouse_click()
+                    except: pass
+            print(message.text)
+            if not message: 
+                print("Не вдалося отримати лист з кодом.")
+                
+
+            if "Here’s your confirmation code " in message.text:
+                await message.mouse_click()
+
+
+
+            code = False
+            try:
+                code = await page2.wait_for('table > tbody > tr > td > table > tbody > tr > td > div > table > tbody > tr > td > div:nth-child(3) > table > tbody > tr > td > table > tbody > tr:nth-child(3) > td > div', timeout=5)
+            except: pass
+
+
+            if code:
+                await page2.close()
+                await page.activate()
+               
+            else:
+                print('page not activated')
+                await page2.close()
+                await page.activate()
+                await page.reload()
+                logger.info(f"Спроба {attempt + 1} перезавантажити сторінку")
+                await page.evaluate('document.cookie.split(";").forEach(cookie => document.cookie = cookie.trim().replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/"));')
+                continue
+            
+            confirmation_input = False
+            try: confirmation_input = await page.wait_for('#gigya-custom-pin-code-container > div > div', timeout=10)
+            except Exception as e: print(e)
+            confirmation_input = await page.select_all('#gigya-custom-pin-code-container > div > div > input')
+            for index, input_el in enumerate(confirmation_input):
+                await input_el.send_keys(code.text[index])
+            
+            continue_button = await page.select('#gigya-otp-update-form > div:nth-child(3) > div > input')
+            await continue_button.mouse_click()
             time.sleep(5)
-            create_button = await page.select('#gigya-login-form > div:nth-child(4) > a')
-            await create_button.mouse_click()
-            time.sleep(3)
-            div_host = await page.select('#gigya-textbox-75074230944436030')
-            print(div_host)
-            await div_host.send_keys(data['email'])
+
+            # AFTER REGISTRATION COMPLETE
+            close_popup = False
+            try:
+                close_popup = await page.wait_for('a[aria-label="close window"]', timeout=10)
+                await close_popup.mouse_click()
+            except: pass
+            avatar_button = False
+            try:
+                avatar_button = await page.wait_for('pk-avatar[style="--pk-avatar--size: 24px;"]', timeout=10)
+                await avatar_button.mouse_click()
+            except: 
+                await page.reload()
+                logger.info(f"Спроба {attempt + 1} перезавантажити сторінку")
+                await page.evaluate('document.cookie.split(";").forEach(cookie => document.cookie = cookie.trim().replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/"));')
+                continue
+            time.sleep(2)
+            first_name = await page.select('#gigya-textbox-firstName')
+            await first_name.scroll_into_view()
+            await first_name.send_keys(data['first_name'])
+            last_name = await page.select('#gigya-textbox-lastName')
+            await last_name.scroll_into_view()
+            await last_name.send_keys(data['last_name'])
+
+            dob_dd = await page.select('#gigya-textbox-96152432980421250')
+            await dob_dd.scroll_into_view()
+            await dob_dd.clear_input()
+            await dob_dd.mouse_click()
+            await dob_dd.send_keys(day)
+            dob_mm = await page.select('#gigya-textbox-59935917301914800')
+            await dob_mm.scroll_into_view()
+            await dob_mm.clear_input()
+            await dob_mm.mouse_click()
+            await dob_mm.send_keys(month)
+            dob_yyyy = await page.select('#gigya-textbox-145790993623807550')
+            await dob_yyyy.scroll_into_view()
+            await dob_yyyy.clear_input()
+            await dob_yyyy.mouse_click()
+            await dob_yyyy.send_keys(year)
+
+            save_button = await page.select('#gigya-profile-form > div:nth-child(9) > div.gigya-composite-control.gigya-composite-control-submit > input')
+            await save_button.scroll_into_view()
+            await save_button.mouse_click()
+
+            time.sleep(5)
+
+            your_teams_button = await page.select('#idp-modal-wrapper > div > div > div.idp-myuefa-userprofile__left > div > nav > div:nth-child(2)')
+            await your_teams_button.scroll_into_view()
+            await your_teams_button.mouse_click()
             
         except Exception as e: 
             print("Error in main function", e)
@@ -119,6 +279,16 @@ async def main(config, data, adspower_api=None):
     ads_request(adspower_api if adspower_api else API_KEY, f'/api/v1/browser/stop?serial_number={data["serial_number"]}')
     isValid = isValid is not None
     return isValid
+
+
+def switch_frame(browser, iframe) -> Tab:
+    iframe: Tab = next(
+        filter(
+            lambda x: str(x.target.target_id) == str(iframe.frame_id), browser.targets
+        )
+    )
+    iframe.websocket_url = iframe.websocket_url.replace("iframe", "page")
+    return iframe
 
 
 def run_test(data, adspower_api=None):
@@ -175,8 +345,8 @@ async def process_browsers(necessary_browsers, adspower_api=None):
                 success_count += 1
                 logger.log(INFO, f"Оброблено браузерів: {processed_count + 1}/{len(necessary_browsers)} | {necessary_browser['email']}")
             else: 
-                logger.error(f"В одному з браузерів не було знайдено пошти: {necessary_browser['email']}, {necessary_browser['serial_number']}")
-                problem_browsers.append(f"В одному з браузерів не було знайдено пошти: {necessary_browser['email']}, {necessary_browser['serial_number']}")
+                logger.error(f"В одному з браузерів не вдалося створити аккаунт: {necessary_browser['email']}, {necessary_browser['serial_number']}")
+                problem_browsers.append(f"В одному з браузерів не вдалося створити аккаунт: {necessary_browser['email']}, {necessary_browser['serial_number']}")
             processed_count += 1
     return success_count, processed_count, problem_browsers
 
@@ -199,10 +369,10 @@ if __name__ == "__main__":
     formatted_link = link.split('/')[5]
     # data = get_data_from_range(sheet="Work mail", start_col="B", end_col="C", spreadsheet_id=formatted_link)
     data = get_data_from_google_sheets(SHEET_RANGE="A2:R", SHEET_ID=formatted_link)
-    print("\nOLD DATA", data)
+    # print("\nOLD DATA", data)
     # print("\nNEW DATA", data_new)
     ddata = get_data_from_sheet(data)
     # print(ddata)
     fdata = format_fdata(ddata)
-    print(fdata)
-    # run_test(fdata, adspower_api)
+    pprint(fdata)
+    run_test(fdata, adspower_api)

@@ -320,7 +320,7 @@ def get_data_from_google_sheets(SHEET_RANGE, SHEET_ID):
 
             # Parse JSON data
             data = json.loads(json_data)
-            pprint(data)
+            # pprint(data)
             # Extract rows and format them
             if "table" not in data or "rows" not in data["table"]:
                 print("Invalid data format")
