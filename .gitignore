@@ -11,3 +11,4 @@ main2.py
 pyvenv.cfg
 token.json
 .DS_Store
+/Scripts

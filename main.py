@@ -317,7 +317,7 @@ async def registration(page, data, driver):
     # except: 
     #     await page.reload()
     #     logger.info(f"Спроба {attempt + 1} перезавантажити сторінку")
-    
+    time.sleep(5)
     try:
         dob_dd = await page.select('#gigya-textbox-82693268681955760')
         await dob_dd.scroll_into_view()
@@ -345,7 +345,7 @@ async def registration(page, data, driver):
     await i_accept.clear_input()
     await i_accept.mouse_click()
 
-    create_button = await page.select('#gigya-profile-form > div:nth-child(2) > div > input')
+    create_button = await page.select('input[value="Create account"]')
     await create_button.scroll_into_view()
     await create_button.clear_input()
     await create_button.mouse_click()
@@ -422,9 +422,6 @@ async def main(config, data, adspower_api=None):
         
         if not is_registered and reason == 'Uefa зареєстрований під іншою поштою.':
             return_reason = 'Uefa зареєстрований під іншою поштою.'
-            break
-        elif not is_registered and reason == 'password required':
-            return_reason = 'Потребує пароль.'
             break
         elif not is_registered and reason == 'gmail required':
             return_reason = 'Gmail аккаунту немає в adspower браузері.'
