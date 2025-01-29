@@ -73,21 +73,21 @@ def get_data_from_sheet(data):
     result = []
 
     for item in data:
-        # print(item)
-        if len(item) > 1:
-            if item and '@' in item[1]:
-                result.append(item)
-            else: break
+        # Skip the row if any of the indices is None
+        if None in item:
+            continue
+        
+        # Ensure the row has at least 2 elements and the second element contains '@'
+        if len(item) > 1 and isinstance(item[1], str) and '@' in item[1]:
+            result.append(item)
     
     return result
 
 
 def format_fdata(data):
     result = []
-    pprint(data)
     for el in data:
-        print("email", el[15])
-        result.append({'email': el[1], 'serial_number': el[0], 'uefa_password': el[15], 'first_name': el[7], 'last_name': el[8], 'dob': el[9]})
+        result.append({'email': el[1], 'password': el[2], 'serial_number': el[0], 'uefa_password': el[6], 'first_name': el[3], 'last_name': el[4], 'dob': el[5], 'country': el[7]})
     return result
     
     

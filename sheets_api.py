@@ -305,41 +305,69 @@ def get_data_from_google_sheet_A(today_datetime):
 def get_data_from_google_sheets(SHEET_RANGE, SHEET_ID):
     SHEET_TITLE = 'main'
     link = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?sheet={SHEET_TITLE}&range={SHEET_RANGE}'
+    
+    # Define the desired column labels in order
+    desired_labels = [
+        'ADS', 'Mail', 'Pass',
+        'First Name', 'Last Name', 'Db', 'Uefa Pass', "Обирати"
+    ]
 
     try:
-        # Send the GET request
         response = requests.get(link)
-        
-        # Check for a successful response
         if response.status_code == 200:
-            # Extract content (omit the unnecessary JavaScript wrapping)
             content = response.text
             start_index = content.find('(') + 1
             end_index = content.rfind(')')
             json_data = content[start_index:end_index]
-
-            # Parse JSON data
             data = json.loads(json_data)
-            # pprint(data)
-            # Extract rows and format them
+
             if "table" not in data or "rows" not in data["table"]:
                 print("Invalid data format")
                 return []
-            
-            rows = data["table"]["rows"]
+
+            # Map column labels to indices
+            columns = data['table']['cols']
+            column_indices = {}
+            for idx, col in enumerate(columns):
+                column_indices[col['label']] = idx
+
+            # Get indices in desired order
+            desired_indices = []
+            for label in desired_labels:
+                if label in column_indices:
+                    desired_indices.append(column_indices[label])
+                else:
+                    print(f"Warning: Column '{label}' not found in sheet")
+                    desired_indices.append(None)  # Keep position for alignment
+
+            # Process rows
             formatted_data = []
-            for row in rows:
+            for row in data["table"]["rows"]:
                 formatted_row = []
-                for cell in row["c"]:
-                    if cell is not None:
-                        if cell.get("v") is not None:
-                            if type(cell["v"]) == float:
-                                formatted_row.append(int(cell["v"]))
-                            elif type(cell['v']) == str:
-                                formatted_row.append(cell["v"].strip())
-                    else: formatted_row.append(None)
+                for col_idx in desired_indices:
+                    if col_idx is None or col_idx >= len(row['c']) or row['c'][col_idx] is None:
+                        formatted_row.append(None)
+                        continue
+                        
+                    cell = row['c'][col_idx]
+                    col_type = columns[col_idx]['type']
+
+                    # Handle different data types
+                    if cell.get('v') is None:
+                        val = None
+                    elif col_type == 'date':
+                        val = cell.get('f', str(cell.get('v', '')))
+                    elif col_type == 'number':
+                        num_val = cell['v']
+                        val = int(num_val) if isinstance(num_val, float) and num_val.is_integer() else num_val
+                    elif col_type == 'string':
+                        val = str(cell['v']).strip()
+                    else:
+                        val = cell.get('v')
+
+                    formatted_row.append(val)
                 formatted_data.append(formatted_row)
-            
+
             return formatted_data
         else:
             print(f"Error: Received status code {response.status_code}")
