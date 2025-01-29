@@ -304,8 +304,6 @@ async def registration(page, data, driver):
     except Exception as e: print('Outside try', e)
     await page.activate()
     print('return to main page')
-    if password_required:
-        return False, 'password required'
     if not email_exists:
         return False, 'gmail required'
     if not gmail_continue_button:
