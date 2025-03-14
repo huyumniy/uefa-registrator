@@ -377,7 +377,6 @@ def get_data_from_google_sheets(SHEET_RANGE, SHEET_ID):
         return None
 
 
-
 if __name__ == "__main__":
     # Example usage for getting data
     # save_data_to_google_sheets(sheet="Тест", data=[['10.07', 1, 25]])

@@ -531,7 +531,7 @@ if __name__ == "__main__":
     # adspower_api = 'http://local.adspower.net:50325'
     formatted_link = link.split('/')[5]
     # data = get_data_from_range(sheet="Work mail", start_col="B", end_col="C", spreadsheet_id=formatted_link)
-    data = get_data_from_google_sheets(SHEET_RANGE="A1:R", SHEET_ID=formatted_link)
+    data = get_data_from_google_sheets(SHEET_RANGE="A1:M", SHEET_ID=formatted_link)
     # print("\nOLD DATA", data)
     ddata = get_data_from_sheet(data)
     # print(ddata)
